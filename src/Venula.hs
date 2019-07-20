@@ -8,88 +8,80 @@
 --
 --------------------------------------------------------------------------------
 module Venula
-  ( module Venula
+  ( Venula(..)
   ) where
 --------------------------------------------------------------------------------
 import Prelude
 --------------------------------------------------------------------------------
-import Control.Lens.Operators
+import Hedgehog
 --------------------------------------------------------------------------------
-import qualified Data.UUID     as UUID
-import qualified Data.UUID.V4  as UUID
---------------------------------------------------------------------------------
-import Data.UUID (UUID)
---------------------------------------------------------------------------------
-import Control.Lens (makeFieldsNoPrefix, Iso')
---------------------------------------------------------------------------------
--- Graph Structure
-
--- | Represents a scalar
-data VertexScalar
-  = VertexInteger Integer
-  | VertexFloat   Double
-  | VertexText    Text
-  | VertexBool    Bool
-  deriving (Eq, Show)
-
--- | Represents an application-specific value
-data Vertex stateType = Vertex
-  { _vertexType  :: stateType
-  , _vertexValue :: VertexScalar
-  }
-deriving instance Eq stateType => Eq (Vertex stateType)
-deriving instance Show stateType => Show (Vertex stateType)
-
--- | Represents an application's state
-data Graph stateType = Graph
-  { _edges    :: HashMap UUID UUID
-  , _vertices :: HashMap UUID (Vertex stateType)
-  }
-deriving instance Eq stateType => Eq (Graph stateType)
-deriving instance Show stateType => Show (Graph stateType)
-
-
--- | Cardinality constraints on edges
-data Cardinality stateType
-  = MaybeOne stateType
-  | One      stateType
-  | Many     stateType
-deriving instance Eq stateType => Eq (Cardinality stateType)
-deriving instance Show stateType => Show (Cardinality stateType)
-
--- | Constraints placed values in the application
-data Constraint stateType
-  = Unique          stateType
-  | ToCardinality   stateType (Cardinality stateType)
-  | FromCardinality stateType (Cardinality stateType)
-deriving instance Eq stateType => Eq (Constraint stateType)
-deriving instance Show stateType => Show (Constraint stateType)
-
-
+import qualified Hedgehog.Gen as Gen
 --------------------------------------------------------------------------------
 -- Venula Typeclass
 
--- | Define how to convert state from its types and representation
--- into a "Venula" 'Graph'
-class (Eq stateType, Show stateType) =>
-  Venula stateType stateRep | stateRep -> stateType where
-    venularPairs :: Iso' stateRep [(Vertex stateType, Vertex stateType)]
 
--- | Construct the graph from the provided type
--- Opts to maintain the specified constraints over
--- preserving passed pairs -> starting from tail
-constructGraph
-  :: forall stateType stateRep
-  . (Venula stateType stateRep)
-  => stateRep
-  -> HashSet (Constraint stateType)
-  -> Graph stateType
-constructGraph sRep constraints
-  = foldr (mergePair constraints) (Graph mempty mempty) $ sRep ^. venularPairs
-  where
-    mergePair
-      :: HashSet (Constraint stateType)
-      -> (Vertex stateType, Vertex stateType)
-      -> Graph stateType
-      -> Graph stateType
-    mergePair = undefined
+-- | Define how to convert state into a 'Venula' state rep
+class (Eq stateRep, Show stateRep) =>
+  Venula stateRep where
+    -- | Extract an in-memory representation of state
+    toStateRep :: IO stateRep
+    -- | Create state from the given stateRep
+    fromStateRep :: stateRep -> IO ()
+
+
+
+--------------------------------------------------------------------------------
+-- Provided functions
+
+
+-- | Check that the methods of 'Venula' do what they are meant to for the given
+-- stateRep. Basically just checks that a generated representation of state
+-- round trips using the 'Venula' methods.
+checkStateRep
+  :: Venula stateRep
+  => Gen stateRep
+  -> Property
+checkStateRep genStateRep = property $ do
+  sampleStateRep <- Gen.sample genStateRep
+  calculatedStateRep <- lift $ do
+    fromStateRep sampleStateRep
+    toStateRep
+  calculatedStateRep === sampleStateRep
+
+
+-- | Define a way to test any function on state with an associated 'Venula'.
+-- This takes the function itself, the initial representation of state,
+-- and the representation of state corresponding to the expected result of
+-- the function call.
+--
+-- Returns if the calculated state representation matches the expected result.
+testFunctionOnState
+  :: Venula stateRep
+  => IO ()
+  -> stateRep
+  -> stateRep
+  -> Property
+testFunctionOnState functionOnState initialStateRep finalStateRep = property $ do
+  calculatedStateRep <- lift $ do
+    fromStateRep initialStateRep
+    functionOnState
+    toStateRep
+  calculatedStateRep === finalStateRep
+
+-- | Define a way to test any function on state with an associated 'Venula'.
+-- This takes the function itself as well as a generator for pairs of
+-- state representation, pre and post function call.
+--
+-- Returns if the calculated state representation matches the expected result.
+testFunctionOnGeneratedState
+  :: Venula stateRep
+  => IO ()
+  -> Gen (stateRep, stateRep)
+  -> Property
+testFunctionOnGeneratedState functionOnState genStateRepPair = property $ do
+  (initialStateRep, finalStateRep) <- Gen.sample genStateRepPair
+  calculatedStateRep <- lift $ do
+    fromStateRep initialStateRep
+    functionOnState
+    toStateRep
+  calculatedStateRep === finalStateRep

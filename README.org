@@ -1,0 +1,9 @@
+* venula
+The purpose of this tiny library is to simplify and strengthen Haskell testing.
+
+The user provides a function that operates in IO, named `functionOnState`,
+and an `initialStateRep` and a `finalStateRep` for each test. This allows for
+a simple test API, while the `checkStateRep` function ensures that the user-provided translation between state and the in-memory representation are a match! The user just has to provide an instance of `Venula`, defined by
+the `toStateRep` and `fromStateRep` methods.
+
+There is also `testFunctionOnGeneratedState` that takes a generator of inital/final state representation pairs to provide a wider range of tests.

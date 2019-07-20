@@ -41,37 +41,5 @@ library
                      , hedgehog
                      , lens
                      , mtl
+                     , transformers
                      , uuid
-
-test-suite venula-tests
-  main-is:             Main.hs
-  other-modules:
-                       Test.Prelude
-                       VenulaTest
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  default-language:    Haskell2010
-  default-extensions:
-                     DerivingStrategies
-                     FlexibleContexts
-                     FlexibleInstances
-                     FunctionalDependencies
-                     GeneralizedNewtypeDeriving
-                     MultiParamTypeClasses
-                     NoImplicitPrelude
-                     OverloadedStrings
-                     OverloadedLists
-                     RecordWildCards
-                     ScopedTypeVariables
-                     StandaloneDeriving
-                     TypeApplications
-                     TupleSections
-  build-depends:       base-noprelude >=4.11
-                     , classy-prelude
-                     , venula
-                     , hedgehog
-                     , lens
-                     , mtl
-                     , tasty
-                     , tasty-discover
-                     , tasty-hedgehog
